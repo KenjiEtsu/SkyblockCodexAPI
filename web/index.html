@@ -1,0 +1,67 @@
+﻿<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SkyBlock Codex</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <header class="topbar">
+    <div class="logo">SkyBlock Codex</div>
+    <div class="topbar-links">
+      <a class="topbar-link" id="currentMayor" href="./mayor.html">Current Mayor: Cargando...</a>
+      <a class="topbar-link" id="currentBingo" href="./bingo.html">Bingo: Cargando...</a>
+    </div>
+    <div class="status" id="status">Listo</div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Wiki inteligente</p>
+        <h1>Consulta items, colecciones, skills y más sin salir del navegador.</h1>
+        <p class="sub">Conexión directa al API oficial de Hypixel. Respuestas rápidas, formato limpio.</p>
+      </div>
+      <div class="hero-card">
+        <div class="card-title">Modo</div>
+        <div class="mode-grid" id="modeGrid">
+          <button class="mode active" data-mode="item">Item</button>
+          <button class="mode" data-mode="collection">Colección</button>
+          <button class="mode" data-mode="skill">Skill</button>
+        </div>
+        <div class="input-row">
+          <input id="queryInput" type="text" placeholder="Escribe el nombre o ID" />
+          <button id="searchBtn" class="cta">Buscar</button>
+        </div>
+        <div class="suggestions" id="suggestions"></div>
+        <p class="hint" id="hint">Ejemplo: Wise Dragon Boots</p>
+      </div>
+    </section>
+
+    <section class="results" id="results">
+      <div class="empty">Haz una búsqueda para ver resultados.</div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <span>SkyBlock Codex • Interfaz local</span>
+    <span class="mono">API pública • Hypixel</span>
+  </footer>
+
+  <div class="modal" id="goalModal">
+    <div class="modal-card">
+      <button class="modal-close" id="modalClose">Cerrar</button>
+      <div class="modal-title" id="modalTitle">Detalle</div>
+      <div class="perk-desc" id="modalBody"></div>
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
