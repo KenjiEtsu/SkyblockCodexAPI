@@ -630,7 +630,8 @@ async function loadStaticPanels() {
           )
           .join("");
         const minister = mayor.minister || {};
-        const election = data.current || data.election || {};
+        const election =
+          data.mayor?.election || {};
         const mayorYear = mayor?.election?.year || election.year || data.year || "N/A";
         const candidates = (election.candidates || []).slice().sort((a, b) => (b.votes || 0) - (a.votes || 0));
         const totalVotes = candidates.reduce((sum, c) => sum + (c.votes || 0), 0);
