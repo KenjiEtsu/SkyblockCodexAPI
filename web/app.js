@@ -19,6 +19,30 @@ const cache = new Map();
 const itemTierByName = new Map();
 const itemDisplayByName = new Map();
 
+const demoQueries = {
+  item: [
+    { q: "Ender Helmet", tier: "EPIC", fields: [{ label: "Tier", value: "EPIC" }, { label: "Categoría", value: "Armor" }] },
+    { q: "Aspect of the End", tier: "RARE", fields: [{ label: "Tier", value: "RARE" }, { label: "Categoría", value: "Weapon" }] },
+  ],
+  collection: [
+    { q: "Cobblestone", fields: [{ label: "Categoría", value: "MINING" }, { label: "Tiers", value: "7" }] },
+    { q: "Carrot", fields: [{ label: "Categoría", value: "FARMING" }, { label: "Tiers", value: "9" }] },
+  ],
+  skill: [
+    { q: "Mining", fields: [{ label: "Max Level", value: "60" }, { label: "Tipo", value: "Skill" }] },
+    { q: "Taming", fields: [{ label: "Max Level", value: "60" }, { label: "Tipo", value: "Skill" }] },
+  ],
+};
+let demoIndex = 0;
+let demoChar = 0;
+let demoTimer = null;
+let demoPaused = false;
+let demoResetting = false;
+const demoArea = document.getElementById("demoArea");
+const demoText = document.getElementById("demoText");
+const demoResults = document.getElementById("demoResults");
+let demoActive = true;
+
 function now() {
   return Date.now();
 }
@@ -38,7 +62,7 @@ function setCache(key, value, ttlMs) {
 }
 
 const hints = {
-  item: "Ejemplo: Wise Dragon Armor",
+  item: "Ejemplo: Wise Dragon Boots",
   collection: "Ejemplo: Cobblestone",
   skill: "Ejemplo: Mining",
 };
@@ -56,6 +80,7 @@ function setMode(newMode) {
     queryInput.placeholder = queryInput.disabled ? "No hace falta" : "Escribe el nombre o ID";
   }
   if (suggestions) suggestions.innerHTML = "";
+  startDemoTyping();
 }
 
 if (modeGrid) {
@@ -487,6 +512,11 @@ function pickMatch(list, query) {
 }
 
 async function runSearch() {
+  if (searchBtn) {
+    searchBtn.classList.remove("searching");
+    void searchBtn.offsetWidth;
+    searchBtn.classList.add("searching");
+  }
   const q = queryInput.value.trim();
   if ((mode === "item" || mode === "collection" || mode === "skill") && !q) {
     renderEmpty("Escribe algo para buscar.");
@@ -565,16 +595,34 @@ async function runSearch() {
   }
 }
 
-if (searchBtn) searchBtn.addEventListener("click", runSearch);
-if (queryInput) {
-  queryInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") runSearch();
-  });
-  queryInput.addEventListener("input", () => {
-    clearTimeout(suggestTimer);
-    suggestTimer = setTimeout(loadSuggestions, 250);
-  });
-}
+if (searchBtn) searchBtn.addEventListener("click", () => {
+  if (demoArea) {
+    demoActive = false;
+    demoArea.style.display = "none";
+  }
+  runSearch();
+});
+  if (queryInput) {
+    queryInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") runSearch();
+    });
+    queryInput.addEventListener("input", () => {
+      clearTimeout(suggestTimer);
+      suggestTimer = setTimeout(loadSuggestions, 250);
+      if (queryInput.value && demoArea) {
+        demoActive = false;
+        demoArea.style.display = "none";
+      }
+    });
+    queryInput.addEventListener("focus", () => {
+      demoPaused = true;
+      if (demoArea) demoArea.classList.add("paused");
+    });
+    queryInput.addEventListener("blur", () => {
+      demoPaused = false;
+      if (demoArea) demoArea.classList.remove("paused");
+    });
+  }
 
 if (results) {
   results.addEventListener("click", async (event) => {
@@ -782,6 +830,39 @@ async function loadStaticPanels() {
 }
 
 loadStaticPanels();
+
+function startDemoTyping() {
+  if (!demoArea || !demoText || !demoResults) return;
+  if (demoTimer) return;
+  demoTimer = setInterval(() => {
+    if (demoPaused) return;
+    if (!demoActive) return;
+    if (queryInput && queryInput.value) return;
+    if (demoResetting) return;
+    const list = demoQueries[mode] || demoQueries.item;
+    const entry = list[demoIndex % list.length];
+    const text = entry.q;
+    demoChar += 1;
+    demoText.textContent = text.slice(0, demoChar);
+    if (demoChar >= text.length) {
+      demoResetting = true;
+      setTimeout(() => {
+        demoResults.innerHTML = `
+          <div class="result-card">
+            <div class="result-title">${entry.tier ? `<span class="${rarityClass(entry.tier)}">${entry.q}</span>` : entry.q}</div>
+            ${entry.fields
+              .map((f) => `<div><span class="badge">${f.label}</span> ${f.value}</div>`)
+              .join("")}
+          </div>
+        `;
+        demoChar = 0;
+        demoIndex += 1;
+        demoText.textContent = "";
+        demoResetting = false;
+      }, 900);
+    }
+  }, 120);
+}
 
 const goalModal = document.getElementById("goalModal");
 const modalClose = document.getElementById("modalClose");

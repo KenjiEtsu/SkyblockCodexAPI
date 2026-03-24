@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
@@ -24,7 +25,7 @@
     <section class="hero">
       <div>
         <p class="eyebrow">Wiki inteligente</p>
-        <h1>Consulta items, colecciones, skills y más sin salir del navegador.</h1>
+        <h1 class="hero-title">Consulta items, colecciones, skills y más sin salir del navegador.</h1>
         <p class="sub">Conexión directa al API oficial de Hypixel. Respuestas rápidas, formato limpio.</p>
       </div>
       <div class="hero-card">
@@ -40,6 +41,14 @@
         </div>
         <div class="suggestions" id="suggestions"></div>
         <p class="hint" id="hint">Ejemplo: Wise Dragon Boots</p>
+
+        <div class="demo" id="demoArea">
+          <div class="demo-bar">
+            <span class="demo-label">Búsqueda demo</span>
+            <span class="demo-text" id="demoText"></span><span class="demo-cursor">|</span>
+          </div>
+          <div class="demo-results" id="demoResults"></div>
+        </div>
       </div>
     </section>
 

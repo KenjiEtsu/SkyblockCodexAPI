@@ -103,6 +103,14 @@ h1 {
   margin: 0 0 16px;
 }
 
+.hero-title {
+  background: linear-gradient(90deg, rgba(34, 211, 238, 0.95), rgba(249, 115, 22, 0.95));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 10px 30px rgba(34, 211, 238, 0.15);
+}
+
 .sub {
   color: var(--muted);
   line-height: 1.6;
@@ -115,6 +123,25 @@ h1 {
   border-radius: 20px;
   padding: 24px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-card::before {
+  content: "";
+  position: absolute;
+  inset: -60% 0 auto 0;
+  height: 140%;
+  background: radial-gradient(circle at 20% 20%, rgba(34, 211, 238, 0.25), transparent 55%),
+              radial-gradient(circle at 80% 0%, rgba(249, 115, 22, 0.2), transparent 55%);
+  opacity: 0.5;
+  animation: glowSweep 8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.hero-card > * {
+  position: relative;
+  z-index: 1;
 }
 
 .card-title {
@@ -148,6 +175,87 @@ h1 {
 .input-row {
   display: flex;
   gap: 12px;
+}
+
+.demo {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 12px;
+}
+
+.demo-bar {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.demo-label {
+  color: var(--accent-2);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: 11px;
+}
+
+.demo-text {
+  color: var(--text);
+}
+
+.demo-cursor {
+  color: var(--accent);
+  animation: blink 1s steps(2, start) infinite;
+}
+
+.demo-results {
+  display: grid;
+  gap: 8px;
+}
+
+.demo-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(15, 19, 26, 0.85);
+  display: grid;
+  gap: 4px;
+  animation: riseIn 0.5s ease;
+}
+
+.demo-title {
+  font-weight: 700;
+}
+
+.demo-meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes riseIn {
+  from { transform: translateY(6px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes glowSweep {
+  0%, 100% { transform: translateY(-10%) translateX(-5%); }
+  50% { transform: translateY(5%) translateX(5%); }
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(34, 211, 238, 0.0); }
+  50% { box-shadow: 0 0 18px rgba(34, 211, 238, 0.35); }
+}
+
+.input-row input {
+  animation: pulse 3.5s ease-in-out infinite;
 }
 
 .suggestions {
@@ -198,6 +306,16 @@ input {
 
 .cta:hover {
   transform: translateY(-2px);
+}
+
+.cta.searching {
+  animation: pressPulse 0.8s ease;
+}
+
+@keyframes pressPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(0.96); }
+  100% { transform: scale(1); }
 }
 
 .hint {
