@@ -127,12 +127,59 @@ function rarityClass(tier) {
 }
 
 function hasMinecraftFormatting(text) {
-  return typeof text === "string" && text.includes("§");
+  return typeof text === "string" && (text.includes("§") || /%%[a-z_]+%%/i.test(text));
+}
+
+function percentFormatToHtml(text) {
+  if (typeof text !== "string") return text || "";
+  const map = {
+    black: "#000000",
+    dark_blue: "#0000AA",
+    dark_green: "#00AA00",
+    dark_aqua: "#00AAAA",
+    dark_red: "#AA0000",
+    dark_purple: "#AA00AA",
+    gold: "#FFAA00",
+    gray: "#AAAAAA",
+    dark_gray: "#555555",
+    blue: "#5555FF",
+    green: "#55FF55",
+    aqua: "#55FFFF",
+    red: "#FF5555",
+    light_purple: "#FF55FF",
+    yellow: "#FFFF55",
+    white: "#FFFFFF",
+  };
+
+  let result = "";
+  let currentColor = "";
+  let lastIndex = 0;
+  const regex = /%%([a-z_]+)%%/gi;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    const chunk = text.slice(lastIndex, match.index);
+    if (chunk) {
+      result += currentColor ? `<span style="color:${currentColor}">${chunk}</span>` : chunk;
+    }
+    currentColor = map[match[1].toLowerCase()] || currentColor;
+    lastIndex = regex.lastIndex;
+  }
+
+  const tail = text.slice(lastIndex);
+  if (tail) {
+    result += currentColor ? `<span style="color:${currentColor}">${tail}</span>` : tail;
+  }
+
+  return result;
 }
 
 function renderItemName(name, tier) {
-  if (hasMinecraftFormatting(name)) {
+  if (typeof name === "string" && name.includes("§")) {
     return minecraftToHtml(name);
+  }
+  if (typeof name === "string" && /%%[a-z_]+%%/i.test(name)) {
+    return percentFormatToHtml(name);
   }
   const cls = rarityClass(tier);
   return cls ? `<span class="${cls}">${name}</span>` : name;
@@ -481,7 +528,7 @@ function renderMuseumBrowser(items) {
     <div class="museum-browser">
       <div class="museum-header">
         <div class="result-title">Museum</div>
-        <div class="museum-subtitle">Explora las piezas aceptadas en el Museum por categoria. Los sets de armadura aparecen una sola vez y cuentan como donacion completa.</div>
+        <div class="museum-subtitle">Explora los items aceptados en el Museum por categoria y localiza rapido su XP y categoria.</div>
       </div>
       <div class="museum-filters">${chips}</div>
       <div class="museum-items-grid" id="museumGrid">${cards}</div>
@@ -795,7 +842,7 @@ function renderSuggestions(items) {
   suggestions.innerHTML = items
     .map(
       (item) =>
-        `<div class="suggestion" data-value="${item.value}">${item.value}<small>${item.type}</small></div>`
+        `<div class="suggestion" data-value="${item.value}">${item.label || item.value}<small>${item.type}</small></div>`
     )
     .join("");
 }
@@ -837,8 +884,21 @@ function rankMatches(values, query, limit = 8) {
 }
 
 function makeSuggestions(list, query, type) {
-  const names = list.map((i) => i.name).filter(Boolean);
-  return rankMatches(names, query).map((name) => ({ value: name, type }));
+  const entries = list
+    .filter((i) => i?.name)
+    .map((i) => ({
+      value: i.name,
+      tier: i.tier,
+    }));
+  const ranked = rankMatches(entries.map((entry) => entry.value), query);
+  return ranked.map((name) => {
+    const match = entries.find((entry) => entry.value === name);
+    return {
+      value: name,
+      type,
+      label: match ? renderItemName(match.value, match.tier) : name,
+    };
+  });
 }
 
 function formatUnix(value) {
@@ -867,6 +927,21 @@ function normalizePerkList(value) {
   return value.map((perk, index) => normalizePerk(perk, `Perk ${index + 1}`)).filter(Boolean);
 }
 
+function collectElectionNodes(value, acc = []) {
+  if (!value || typeof value !== "object") return acc;
+  if (Array.isArray(value)) {
+    value.forEach((entry) => collectElectionNodes(entry, acc));
+    return acc;
+  }
+  if (Array.isArray(value.candidates) || value.year != null) {
+    acc.push(value);
+  }
+  Object.values(value).forEach((entry) => {
+    if (entry && typeof entry === "object") collectElectionNodes(entry, acc);
+  });
+  return acc;
+}
+
 function resolveMayorData(data) {
   const mayorCandidates = [
     data?.mayor,
@@ -877,15 +952,18 @@ function resolveMayorData(data) {
   const mayor =
     mayorCandidates.find((entry) => entry.name || Array.isArray(entry.perks) || entry.minister) || {};
 
-  const electionCandidates = [
-    data?.mayor?.election,
-    data?.election,
-    data?.current?.election,
-    Array.isArray(data?.current?.candidates) ? data.current : null,
-  ].filter((entry) => entry && typeof entry === "object");
+  const electionCandidates = collectElectionNodes(data).filter(
+    (entry, index, arr) => arr.indexOf(entry) === index
+  );
 
-  const election =
-    electionCandidates.find((entry) => Array.isArray(entry.candidates) || entry.year != null) || {};
+  const election = electionCandidates.sort((a, b) => {
+    const aHasCandidates = Array.isArray(a?.candidates) ? 1 : 0;
+    const bHasCandidates = Array.isArray(b?.candidates) ? 1 : 0;
+    if (aHasCandidates !== bHasCandidates) return bHasCandidates - aHasCandidates;
+    const aYear = Number(a?.year ?? -1);
+    const bYear = Number(b?.year ?? -1);
+    return bYear - aYear;
+  })[0] || {};
 
   const minister =
     mayor?.minister ||
