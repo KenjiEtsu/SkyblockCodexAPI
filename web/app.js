@@ -11,6 +11,7 @@ const currentMayorLink = document.getElementById("currentMayor");
 const currentBingoLink = document.getElementById("currentBingo");
 const mayorPage = document.getElementById("mayorPage");
 const bingoPage = document.getElementById("bingoPage");
+const museumPage = document.getElementById("museumPage");
 
 let mode = "item";
 let suggestTimer = null;
@@ -125,18 +126,469 @@ function rarityClass(tier) {
   return `rarity-${t.replace(/\s+/g, "-")}`;
 }
 
-function renderItemCard(name, tier, fields) {
+function hasMinecraftFormatting(text) {
+  return typeof text === "string" && text.includes("§");
+}
+
+function renderItemName(name, tier) {
+  if (hasMinecraftFormatting(name)) {
+    return minecraftToHtml(name);
+  }
   const cls = rarityClass(tier);
-  const title = cls ? `<span class="${cls}">${name}</span>` : name;
-  const fieldHtml = fields
-    .map((f) => `<div><span class="badge">${f.label}</span> ${f.value}</div>`)
+  return cls ? `<span class="${cls}">${name}</span>` : name;
+}
+
+function renderItemCard(name, tier, fields, material, skin, color, museumSection = "") {
+  const title = renderItemName(name, tier);
+  const icon = material ? materialIconImg(material, skin, color) : "";
+  const meta = fields
+    .filter((f) => f.label !== "Tier" && f.label !== "ID")
+    .filter((f) => f.label === "Categoría" || f.label === "Precio NPC")
+    .map((f) => {
+      if (f.label === "Precio NPC") {
+        return `<div class="item-meta"><span class="badge">NPC</span> <span class="coin-num">${f.value}</span></div>`;
+      }
+      return `<div class="item-meta"><span class="badge">${f.label}</span> ${f.value}</div>`;
+    })
+    .join("");
+  const stats = fields
+    .filter((f) => !["Tier", "ID", "Categoría", "Precio NPC"].includes(f.label))
+    .map((f) => `<div class="stat-chip"><span class="stat-label">${f.label}</span> <span class="stat-value"${f.style ? ` style="${f.style}"` : ""}>${f.value}</span></div>`)
     .join("");
   return `
     <div class="result-card">
-      <div class="result-title">${title}</div>
-      ${fieldHtml}
+      <div class="item-title-row">
+        ${icon}
+        <div class="result-title">${title}</div>
+      </div>
+      ${stats ? `<div class="stat-grid">${stats}</div>` : ""}
+      ${museumSection}
+      ${meta}
     </div>
   `;
+}
+
+function renderMuseumSection(match, setItems = null) {
+  const museum = extractMuseumInfo(match, setItems);
+  if (!museum) return "";
+  return `
+    <div class="museum-card">
+      <div class="museum-title">Museum</div>
+      <div class="museum-grid">
+        <div class="museum-field">XP<span class="museum-value">${museum.xp}</span></div>
+        <div class="museum-field">Categoría<span class="museum-value">${museum.category}</span></div>
+      </div>
+    </div>
+  `;
+}
+
+function extractMuseumInfo(match, setItems = null) {
+  if (Array.isArray(setItems) && setItems.length) {
+    const setKey = getArmorSetMuseumKey(setItems);
+    const setXpMap =
+      match?.armor_set_donation_xp ??
+      match?.museum_data?.armor_set_donation_xp ??
+      match?.museum?.armor_set_donation_xp ??
+      null;
+    if (setKey && setXpMap && typeof setXpMap === "object" && setXpMap[setKey] != null) {
+      const category =
+        match?.museum_data?.category ??
+        match?.museumData?.category ??
+        match?.museum?.category ??
+        match?.category ??
+        setItems.find((item) => item?.category)?.category ??
+        "N/A";
+      return {
+        xp: setXpMap[setKey],
+        category,
+      };
+    }
+  }
+
+  const museum =
+    match?.museum_data ??
+    match?.museumData ??
+    match?.museum ??
+    null;
+  if (!museum || typeof museum !== "object") return null;
+
+  const xp =
+    museum.donation_xp ??
+    museum.donationXp ??
+    museum.xp ??
+    museum.museum_xp ??
+    museum.experience_value ??
+    museum.value_xp ??
+    museum.experience ??
+    museum.value ??
+    null;
+
+  const category =
+    museum.category ??
+    museum.type ??
+    museum.item_type ??
+    museum.donation_type ??
+    match?.category ??
+    null;
+
+  if (xp == null && category == null) return null;
+  return {
+    xp: xp ?? "N/A",
+    category: category ?? "N/A",
+  };
+}
+
+function renderRelatedItems(match, items) {
+  const setItems = findRelatedItems(match, items);
+  if (!setItems.length) return "";
+  const setSummary = renderSetSummary(setItems);
+  const museumSection = renderMuseumSection(match, setItems);
+  const cards = setItems
+    .map((item) => {
+        const icon = item.material ? materialIconImg(item.material, item.skin, item.color) : "";
+      const title = renderItemName(item.name, item.tier);
+      const active = item.name === match.name ? " data-active=\"1\"" : "";
+      return `
+        <button class="related-card"${active} data-related-item="${item.name}">
+          ${icon}
+          <div>
+            <div class="related-card-name">${title}</div>
+            <div class="related-card-meta">${item.category || "Item relacionado"}</div>
+          </div>
+        </button>
+      `;
+    })
+    .join("");
+  return `
+    <div class="related-items">
+      <div class="related-title">Relacionados</div>
+      <div class="related-grid">${cards}</div>
+      ${setSummary}
+      ${museumSection}
+    </div>
+  `;
+}
+
+function findRelatedItems(match, items) {
+  if (!match || !Array.isArray(items)) return [];
+  const armorPieces = ["Helmet", "Chestplate", "Leggings", "Boots"];
+
+  const setKeyFromId = getArmorSetGroupingKey(match);
+  if (setKeyFromId) {
+    const related = items
+      .filter((item) => getArmorSetGroupingKey(item) === setKeyFromId)
+      .sort((a, b) => getArmorPieceOrder(a) - getArmorPieceOrder(b));
+    if (related.length >= 2) return related;
+  }
+
+  if (!match?.name) return [];
+  const pattern = parseArmorNamePattern(match.name, armorPieces);
+  if (!pattern) return [];
+  return armorPieces
+    .map((piece) => pattern.template(piece))
+    .map((name) => items.find((item) => item?.name === name))
+    .filter(Boolean);
+}
+
+function getArmorSetGroupingKey(item) {
+  const rawId = String(item?.id || "").toUpperCase();
+  if (!rawId) return "";
+  const cleaned = rawId
+    .replace(/(?:^|_)(HELMET|CHESTPLATE|LEGGINGS|BOOTS)(?:_|$)/, "_")
+    .replace(/^_+|_+$/g, "")
+    .replace(/_+/g, "_");
+  return cleaned !== rawId ? cleaned : "";
+}
+
+function getArmorPieceOrder(item) {
+  const rawId = String(item?.id || "").toUpperCase();
+  if (/(?:^|_)HELMET(?:_|$)/.test(rawId)) return 0;
+  if (/(?:^|_)CHESTPLATE(?:_|$)/.test(rawId)) return 1;
+  if (/(?:^|_)LEGGINGS(?:_|$)/.test(rawId)) return 2;
+  if (/(?:^|_)BOOTS(?:_|$)/.test(rawId)) return 3;
+
+  const rawName = String(item?.name || "");
+  if (/(^|\s)Helmet(\s|$)/i.test(rawName)) return 0;
+  if (/(^|\s)Chestplate(\s|$)/i.test(rawName)) return 1;
+  if (/(^|\s)Leggings(\s|$)/i.test(rawName)) return 2;
+  if (/(^|\s)Boots(\s|$)/i.test(rawName)) return 3;
+  return 99;
+}
+
+function parseArmorNamePattern(name, armorPieces) {
+  const safePieces = armorPieces.join("|");
+  const prefixMatch = name.match(new RegExp(`^(${safePieces})\\s+(.+)$`, "i"));
+  if (prefixMatch) {
+    const suffix = prefixMatch[2];
+    return {
+      displayBase: suffix,
+      template: (targetPiece) => `${targetPiece} ${suffix}`,
+    };
+  }
+
+  const infixMatch = name.match(new RegExp(`^(.+?)\\s+(${safePieces})(.*)$`, "i"));
+  if (infixMatch) {
+    const prefix = infixMatch[1];
+    const tail = infixMatch[3] || "";
+    return {
+      displayBase: `${prefix}${tail}`.trim(),
+      template: (targetPiece) => `${prefix} ${targetPiece}${tail}`.trim(),
+    };
+  }
+
+  return null;
+}
+
+function getArmorSetDisplayName(item, relatedItems = []) {
+  const namePattern = parseArmorNamePattern(item?.name || "", ["Helmet", "Chestplate", "Leggings", "Boots"]);
+  if (namePattern?.displayBase) {
+    return namePattern.displayBase.replace(/^of\s+/i, "").trim();
+  }
+
+  const setKey = getArmorSetGroupingKey(item);
+  if (setKey) {
+    return setKey
+      .split("_")
+      .map((part) => part.charAt(0) + part.slice(1).toLowerCase())
+      .join(" ");
+  }
+
+  const fallback = relatedItems.find((entry) => entry?.name)?.name || item?.name || "Armor";
+  return fallback;
+}
+
+function renderSetSummary(items) {
+  const totals = sumItemStats(items);
+  const statEntries = extractStatFields(totals)
+    .map((s) => `<div class="stat-chip"><span class="stat-label">${s.label}</span> <span class="stat-value"${s.style ? ` style="${s.style}"` : ""}>${s.value}</span></div>`)
+    .join("");
+  if (!statEntries) return "";
+  return `
+    <div class="set-summary">
+      <div class="set-summary-title">Stats totales del set</div>
+      <div class="stat-grid">${statEntries}</div>
+    </div>
+  `;
+}
+
+function sumItemStats(items) {
+  const totals = {};
+  for (const item of items) {
+    const stats = item?.stats;
+    if (!stats || typeof stats !== "object") continue;
+    for (const [key, value] of Object.entries(stats)) {
+      const num = typeof value === "number" ? value : Number(value);
+      if (!Number.isFinite(num)) continue;
+      totals[key] = (totals[key] || 0) + num;
+    }
+  }
+  return totals;
+}
+
+function getArmorSetMuseumKey(items) {
+  const armorSuffixes = ["_HELMET", "_CHESTPLATE", "_LEGGINGS", "_BOOTS"];
+  for (const item of items) {
+    const id = String(item?.id || "").toUpperCase();
+    for (const suffix of armorSuffixes) {
+      if (id.endsWith(suffix)) {
+        return id.slice(0, -suffix.length);
+      }
+    }
+  }
+  return "";
+}
+
+function getArmorSetMuseumKeyFromItem(item) {
+  return getArmorSetMuseumKey([item]);
+}
+
+function formatMuseumLabel(value) {
+  return String(value || "N/A")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
+function getMuseumEntries(items) {
+  const setSeen = new Set();
+  const entries = [];
+
+  for (const item of items) {
+    const museum = extractMuseumInfo(item);
+    const setKey = getArmorSetMuseumKeyFromItem(item);
+    const setXpMap =
+      item?.armor_set_donation_xp ??
+      item?.museum_data?.armor_set_donation_xp ??
+      item?.museum?.armor_set_donation_xp ??
+      null;
+
+    if (setKey && setXpMap && typeof setXpMap === "object" && setXpMap[setKey] != null) {
+      if (setSeen.has(setKey)) continue;
+      setSeen.add(setKey);
+      const relatedItems = items.filter((entry) => getArmorSetGroupingKey(entry) === setKey);
+      const displayBase = getArmorSetDisplayName(item, relatedItems);
+      const iconItem = relatedItems.find((entry) => getArmorPieceOrder(entry) === 0) || item;
+      entries.push({
+        type: "set",
+        name: `${displayBase} Set`,
+        museumCategory: formatMuseumLabel(item?.museum_data?.category ?? item?.category ?? "Armor Set"),
+        museumXp: setXpMap[setKey],
+        tier: item.tier,
+        material: iconItem.material,
+        color: iconItem.color,
+        skin: iconItem.skin,
+        note: "Donacion del set completo",
+        matchItemName: item.name,
+      });
+      continue;
+    }
+
+    if (!museum) continue;
+    entries.push({
+      type: "item",
+      name: item.name,
+      museumCategory: formatMuseumLabel(museum.category),
+      museumXp: museum.xp,
+      tier: item.tier,
+        material: item.material,
+        color: item.color,
+        skin: item.skin,
+      note: formatMuseumLabel(item.category),
+      matchItemName: item.name,
+    });
+  }
+
+  return entries.sort((a, b) => {
+    if (a.museumCategory !== b.museumCategory) return a.museumCategory.localeCompare(b.museumCategory);
+    return a.name.localeCompare(b.name);
+  });
+}
+
+function renderMuseumBrowser(items) {
+  const entries = getMuseumEntries(items);
+  if (!entries.length) {
+    return `<div class="empty error">No se encontraron entradas de Museum.</div>`;
+  }
+
+  const categories = ["Todas", ...new Set(entries.map((entry) => entry.museumCategory))];
+  const chips = categories
+    .map((category, index) => `<button class="museum-filter${index === 0 ? " active" : ""}" data-museum-filter="${category}">${category}</button>`)
+    .join("");
+  const cards = entries
+    .map((entry) => renderMuseumCard(entry))
+    .join("");
+
+  return `
+    <div class="museum-browser">
+      <div class="museum-header">
+        <div class="result-title">Museum</div>
+        <div class="museum-subtitle">Explora las piezas aceptadas en el Museum por categoria. Los sets de armadura aparecen una sola vez y cuentan como donacion completa.</div>
+      </div>
+      <div class="museum-filters">${chips}</div>
+      <div class="museum-items-grid" id="museumGrid">${cards}</div>
+    </div>
+  `;
+}
+
+function renderMuseumCard(entry) {
+  const title = renderItemName(entry.name, entry.tier);
+  const icon = entry.material ? materialIconImg(entry.material, entry.skin, entry.color) : "";
+  return `
+    <button class="museum-item-card" data-museum-category="${entry.museumCategory}" data-related-item="${entry.matchItemName}">
+      <div class="museum-item-top">
+        ${icon}
+        <div class="museum-item-name">${title}</div>
+      </div>
+      <div class="museum-item-note">${entry.note}</div>
+      <div class="museum-grid">
+        <div class="museum-field">XP<span class="museum-value">${entry.museumXp}</span></div>
+        <div class="museum-field">Categoría<span class="museum-value">${entry.museumCategory}</span></div>
+      </div>
+    </button>
+  `;
+}
+
+function materialIconUrl(material) {
+  const id = normalizeMaterialId(material);
+  return `https://assets.mcasset.cloud/1.20.4/assets/minecraft/textures/item/${id}.png`;
+}
+
+function materialIconImg(material, skin, color) {
+  const id = normalizeMaterialId(material);
+  if ((id === "skull_item" || id === "skull") && skin) {
+    const textureId = skinToTextureId(skin);
+    if (textureId) {
+      return `<img class="item-icon" src="https://mc-heads.net/head/${textureId}/32" onerror="this.onerror=null;this.removeAttribute('src');this.style.display='none';" />`;
+    }
+    return "";
+  }
+  const leatherColor = parseLeatherColor(id, color);
+  if (leatherColor) {
+    const primary = materialIconUrl(id);
+    const fallback = `https://assets.mcasset.cloud/1.16.2/assets/minecraft/textures/items/${id}.png`;
+    const overlayPrimary = materialIconUrl(`${id}_overlay`);
+    const overlayFallback = `https://assets.mcasset.cloud/1.16.2/assets/minecraft/textures/items/${id}_overlay.png`;
+    return `
+      <span class="item-icon item-icon-leather" style="--leather-color:${leatherColor};">
+        <span class="item-icon-tint"
+          style="mask-image:url('${primary}');-webkit-mask-image:url('${primary}');"
+          onerror="void(0)"></span>
+        <img class="item-icon-overlay"
+          src="${overlayPrimary}"
+          onerror="if(this.dataset.fallback==='1'){this.onerror=null;this.removeAttribute('src');this.style.display='none';}else{this.dataset.fallback='1';this.src='${overlayFallback}';}" />
+      </span>
+    `;
+  }
+  const primary = materialIconUrl(id);
+  const fallback = `https://assets.mcasset.cloud/1.16.2/assets/minecraft/textures/items/${id}.png`;
+  return `<img class="item-icon" src="${primary}" onerror="if(this.dataset.fallback==='1'){this.onerror=null;this.removeAttribute('src');this.style.display='none';}else{this.dataset.fallback='1';this.src='${fallback}';}" />`;
+}
+
+function normalizeMaterialId(material) {
+  const raw = String(material).toLowerCase();
+  if (raw.startsWith("gold_")) {
+    return raw.replace(/^gold_/, "golden_");
+  }
+  return raw;
+}
+
+function parseLeatherColor(materialId, color) {
+  if (!/^leather_(helmet|chestplate|leggings|boots)$/.test(String(materialId || ""))) {
+    return "";
+  }
+  if (!color) return "";
+  if (Array.isArray(color) && color.length >= 3) {
+    return `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
+  }
+  if (typeof color === "string") {
+    const parts = color.split(",").map((part) => Number(part.trim()));
+    if (parts.length >= 3 && parts.slice(0, 3).every((value) => Number.isFinite(value))) {
+      return `rgb(${parts[0]}, ${parts[1]}, ${parts[2]})`;
+    }
+  }
+  if (typeof color === "object") {
+    const values = [color.r, color.g, color.b].map((value) => Number(value));
+    if (values.every((value) => Number.isFinite(value))) {
+      return `rgb(${values[0]}, ${values[1]}, ${values[2]})`;
+    }
+  }
+  return "";
+}
+
+function skinToTextureId(skin) {
+  try {
+    if (!skin) return "";
+    const value = typeof skin === "string" ? skin : (skin.value || "");
+    if (!value) return "";
+    if (value.includes("textures.minecraft.net/texture/")) {
+      return value.split("textures.minecraft.net/texture/")[1].split(/[?#]/)[0];
+    }
+    const decoded = JSON.parse(atob(value));
+    const url = decoded?.textures?.SKIN?.url || "";
+    if (!url) return "";
+    return url.split("textures.minecraft.net/texture/")[1]?.split(/[?#]/)[0] || "";
+  } catch {
+    return "";
+  }
 }
 
 function renderSkillCard(name, description, levels) {
@@ -164,19 +616,62 @@ function renderSkillCard(name, description, levels) {
 
 function renderItemDetails(match) {
   if (!match) return "Item no encontrado.";
-  const fields = [];
-  if (match.category) fields.push({ label: "Categoría", value: match.category });
-  if (match.npc_sell_price) fields.push({ label: "Precio NPC", value: match.npc_sell_price });
-  if (match.id) fields.push({ label: "ID", value: match.id });
-  const fieldHtml = fields.map((f) => `<div><span class="badge">${f.label}</span> ${f.value}</div>`).join("");
-  const cls = rarityClass(match.tier);
-  const title = cls ? `<span class="${cls}">${match.name || "Item"}</span>` : (match.name || "Item");
+  const title = renderItemName(match.name || "Item", match.tier);
+  const icon = match.material ? materialIconImg(match.material, match.skin, match.color) : "";
+  const meta = [];
+  if (match.category) meta.push(`<div class="item-meta"><span class="badge">Categoría</span> ${match.category}</div>`);
+  if (match.npc_sell_price) meta.push(`<div class="item-meta"><span class="badge">NPC</span> <span class="coin-num">${match.npc_sell_price}</span></div>`);
+  const stats = extractStatFields(match.stats)
+    .map((s) => `<div class="stat-chip"><span class="stat-label">${s.label}</span> <span class="stat-value"${s.style ? ` style="${s.style}"` : ""}>${s.value}</span></div>`)
+    .join("");
   return `
     <div class="result-card">
-      <div class="result-title">${title}</div>
-      ${fieldHtml}
+      <div class="item-title-row">
+        ${icon}
+        <div class="result-title">${title}</div>
+      </div>
+      ${stats ? `<div class="stat-grid">${stats}</div>` : ""}
+      ${renderMuseumSection(match)}
+      ${meta.join("")}
     </div>
   `;
+}
+
+function extractStatFields(stats) {
+  if (!stats || typeof stats !== "object") return [];
+  const order = ["damage", "strength", "crit_damage", "crit_chance", "attack_speed", "intelligence", "ferocity"];
+  const entries = Object.entries(stats);
+  const sorted = [
+    ...order.map((k) => entries.find(([key]) => key === k)).filter(Boolean),
+    ...entries.filter(([key]) => !order.includes(key)),
+  ];
+  return sorted.map(([key, value]) => {
+    const label = statLabel(key);
+    const val = formatStatValue(key, value);
+    return { label, value: val.text, style: val.style };
+  });
+}
+
+function statLabel(key) {
+  const map = {
+    damage: "Damage",
+    strength: "Strength",
+    crit_damage: "Crit Damage",
+    crit_chance: "Crit Chance",
+    attack_speed: "Attack Speed",
+    intelligence: "Intelligence",
+    ferocity: "Ferocity",
+  };
+  return map[key] || key.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
+function formatStatValue(key, value) {
+  const num = typeof value === "number" ? value : Number(value);
+  const sign = num > 0 ? "+" : "";
+  const text = Number.isFinite(num) ? `${sign}${num}` : String(value);
+  if (key === "damage") return { text, style: "color:#ff5555;font-weight:600;" };
+  if (key === "intelligence" || key === "ferocity") return { text, style: "color:#55ff55;font-weight:600;" };
+  return { text, style: "" };
 }
 
 function categoryImage(category) {
@@ -353,6 +848,52 @@ function formatUnix(value) {
   const date = new Date(num);
   if (Number.isNaN(date.getTime())) return "N/A";
   return date.toLocaleString("es-ES");
+}
+
+function normalizePerk(perk, fallbackName = "Perk") {
+  if (!perk) return null;
+  if (typeof perk === "string") {
+    return { name: fallbackName, description: perk, minister: false };
+  }
+  return {
+    name: perk.name || fallbackName,
+    description: perk.description || perk.desc || perk.lore || "Sin descripción",
+    minister: perk.minister === true || perk.isMinister === true,
+  };
+}
+
+function normalizePerkList(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map((perk, index) => normalizePerk(perk, `Perk ${index + 1}`)).filter(Boolean);
+}
+
+function resolveMayorData(data) {
+  const mayorCandidates = [
+    data?.mayor,
+    data?.current?.mayor,
+    data?.current,
+  ].filter((entry) => entry && typeof entry === "object");
+
+  const mayor =
+    mayorCandidates.find((entry) => entry.name || Array.isArray(entry.perks) || entry.minister) || {};
+
+  const electionCandidates = [
+    data?.mayor?.election,
+    data?.election,
+    data?.current?.election,
+    Array.isArray(data?.current?.candidates) ? data.current : null,
+  ].filter((entry) => entry && typeof entry === "object");
+
+  const election =
+    electionCandidates.find((entry) => Array.isArray(entry.candidates) || entry.year != null) || {};
+
+  const minister =
+    mayor?.minister ||
+    data?.minister ||
+    data?.current?.minister ||
+    {};
+
+  return { mayor, election, minister };
 }
 
 function minecraftToHtml(text) {
@@ -536,7 +1077,19 @@ async function runSearch() {
       if (match.category) fields.push({ label: "Categoría", value: match.category });
       if (match.npc_sell_price) fields.push({ label: "Precio NPC", value: match.npc_sell_price });
       if (match.id) fields.push({ label: "ID", value: match.id });
-      results.innerHTML = renderItemCard(match.name || "Item", match.tier, fields);
+      fields.push(...extractStatFields(match.stats));
+      const relatedSection = renderRelatedItems(match, items);
+      results.innerHTML =
+        renderItemCard(
+          match.name || "Item",
+          match.tier,
+          fields,
+          match.material,
+          match.skin,
+          match.color,
+          relatedSection ? "" : renderMuseumSection(match)
+        ) +
+        relatedSection;
       return;
     }
 
@@ -626,6 +1179,16 @@ if (searchBtn) searchBtn.addEventListener("click", () => {
 
 if (results) {
   results.addEventListener("click", async (event) => {
+    const related = event.target.closest("[data-related-item]");
+    if (related && queryInput) {
+      const item = related.dataset.relatedItem || "";
+      if (item) {
+        queryInput.value = item;
+        runSearch();
+      }
+      return;
+    }
+
     const btn = event.target.closest(".unlock-item");
     if (!btn || !goalModal || !modalTitle || !modalBody) return;
     const item = btn.dataset.item || "";
@@ -635,6 +1198,31 @@ if (results) {
     modalTitle.textContent = item;
     modalBody.innerHTML = renderItemDetails(match);
     goalModal.classList.add("active");
+  });
+}
+
+if (museumPage) {
+  museumPage.addEventListener("click", (event) => {
+    const filter = event.target.closest("[data-museum-filter]");
+    if (filter) {
+      const value = filter.dataset.museumFilter || "Todas";
+      museumPage.querySelectorAll("[data-museum-filter]").forEach((node) => {
+        node.classList.toggle("active", node === filter);
+      });
+      museumPage.querySelectorAll("[data-museum-category]").forEach((card) => {
+        const visible = value === "Todas" || card.dataset.museumCategory === value;
+        card.style.display = visible ? "" : "none";
+      });
+      return;
+    }
+
+    const card = event.target.closest("[data-related-item]");
+    if (card) {
+      const item = card.dataset.relatedItem || "";
+      if (item) {
+        window.location.href = `./index.html?q=${encodeURIComponent(item)}&mode=item`;
+      }
+    }
   });
 }
 
@@ -651,12 +1239,22 @@ if (suggestions) {
 if (modeGrid) setMode(mode);
 
 async function loadStaticPanels() {
+  if (museumPage) {
+    try {
+      const items = await loadItems();
+      museumPage.innerHTML = renderMuseumBrowser(items);
+    } catch (err) {
+      museumPage.innerHTML = `<div class="empty error">No se pudo cargar Museum.</div>`;
+    }
+  }
+
   try {
     const mayorRes = await fetchJson(`${API_BASE}/resources/skyblock/election`);
     if (mayorRes.ok) {
       const data = mayorRes.data;
-      const mayor = data.mayor || {};
-      const perks = (mayor.perks || []).map((p) => p.name).join(", ");
+      const { mayor, election, minister } = resolveMayorData(data);
+      const mayorPerks = normalizePerkList(mayor.perks);
+      const perks = mayorPerks.map((p) => p.name).join(", ");
       if (currentMayorLink) {
         currentMayorLink.textContent = `Current Mayor: ${mayor.name || "N/A"}`;
       }
@@ -667,19 +1265,16 @@ async function loadStaticPanels() {
         ]);
       }
       if (mayorPage) {
-        const perkList = (mayor.perks || [])
+        const perkList = mayorPerks
           .map(
             (p) => `
-              <div class="perk-item">
-                <div class="perk-title">${p.name || "Perk"}</div>
-                <div class="perk-desc">${minecraftToHtml(p.description || "Sin descripción")}</div>
-              </div>
-            `
+                <div class="perk-item">
+                  <div class="perk-title">${p.name || "Perk"}</div>
+                  <div class="perk-desc">${minecraftToHtml(p.description || "Sin descripción")}</div>
+                </div>
+              `
           )
           .join("");
-        const minister = mayor.minister || {};
-        const election =
-          data.mayor?.election || {};
         const mayorYear = mayor?.election?.year || election.year || data.year || "N/A";
         const candidates = (election.candidates || []).slice().sort((a, b) => (b.votes || 0) - (a.votes || 0));
         const totalVotes = candidates.reduce((sum, c) => sum + (c.votes || 0), 0);
@@ -690,11 +1285,11 @@ async function loadStaticPanels() {
                 const votesLabel = totalVotes
                   ? `${c.votes || 0}/${totalVotes} ${pct.toFixed(1)}%`
                   : "N/A";
-                const cPerks = (c.perks || [])
+                const cPerks = normalizePerkList(c.perks)
                   .map((p) => {
                     const name = p.name || "Perk";
                     const desc = minecraftToHtml(p.description || "");
-                    const isMinister = p.isMinister === true || p.minister === true;
+                    const isMinister = p.minister === true;
                     return `
                       <div class="perk-item${isMinister ? " minister" : ""}">
                         <div class="perk-title">${name}</div>
@@ -710,25 +1305,26 @@ async function loadStaticPanels() {
                   </div>
                 `;
               })
-              .join("")
-          : `<div class="empty">Sin datos de votación actuales.</div>`;
+                .join("")
+            : `<div class="empty">${mayor.name ? `No hay votación activa durante ${mayor.name}.` : "Sin datos de votación actuales."}</div>`;
+        const ministerPerk = normalizePerk(minister?.perk, "Minister Perk");
         mayorPage.innerHTML = `
-          <div class="mayor-layout">
-            <div class="mayor-column">
-              <div class="result-card">
-                <div class="result-title">Gabinete Actual</div>
-                <div class="cabinet-title">Mayor</div>
-                <div class="result-title">${mayor.name || "Mayor"} <span class="badge">Año: ${mayorYear}</span></div>
-                <div class="perk-list">${perkList || "<div class='empty'>Sin perks</div>"}</div>
-                <div class="cabinet-title">Minister</div>
-                <div class="minister-name">${minister.name || "N/A"}</div>
-                <div class="perk-list">
-                  ${
-                    minister.perk
-                      ? `<div class="perk-item"><div class="perk-title">${minister.perk.name || "Perk"}</div><div class="perk-desc">${minecraftToHtml(minister.perk.description || "")}</div></div>`
-                      : "<div class='empty'>Sin perk</div>"
-                  }
-                </div>
+            <div class="mayor-layout">
+              <div class="mayor-column">
+                <div class="result-card">
+                  <div class="result-title">Gabinete Actual</div>
+                  <div class="cabinet-title">Mayor</div>
+                  <div class="result-title">${mayor.name || "Mayor"} <span class="badge">Año: ${mayorYear}</span></div>
+                  <div class="perk-list">${perkList || "<div class='empty'>Sin perks</div>"}</div>
+                  <div class="cabinet-title">Minister</div>
+                  <div class="minister-name">${minister.name || "N/A"}</div>
+                  <div class="perk-list">
+                    ${
+                      ministerPerk
+                        ? `<div class="perk-item"><div class="perk-title">${ministerPerk.name || "Perk"}</div><div class="perk-desc">${minecraftToHtml(ministerPerk.description || "")}</div></div>`
+                        : "<div class='empty'>Sin perk</div>"
+                    }
+                  </div>
                 <div class="hint">Actualizado: ${formatUnix(data.lastUpdated)}</div>
               </div>
             </div>
@@ -830,6 +1426,7 @@ async function loadStaticPanels() {
 }
 
 loadStaticPanels();
+loadQueryFromUrl();
 
 function startDemoTyping() {
   if (!demoArea || !demoText || !demoResults) return;
@@ -862,6 +1459,22 @@ function startDemoTyping() {
       }, 900);
     }
   }, 120);
+}
+
+function loadQueryFromUrl() {
+  if (!queryInput) return;
+  const params = new URLSearchParams(window.location.search);
+  const q = params.get("q");
+  const requestedMode = params.get("mode");
+  if (requestedMode && ["item", "collection", "skill"].includes(requestedMode)) {
+    setMode(requestedMode);
+  }
+  if (q) {
+    queryInput.value = q;
+    demoActive = false;
+    if (demoArea) demoArea.style.display = "none";
+    runSearch();
+  }
 }
 
 const goalModal = document.getElementById("goalModal");
@@ -927,10 +1540,10 @@ if (goalModal && queryInput) {
     if (!btn || !modalTitle || !modalBody) return;
     const item = btn.dataset.item || "";
     if (!item) return;
-    loadItems().then((items) => {
-      const match = pickMatch(items, item);
-      modalTitle.textContent = item;
-      modalBody.innerHTML = renderItemDetails(match);
+      loadItems().then((items) => {
+        const match = pickMatch(items, item);
+        modalTitle.textContent = item;
+        modalBody.innerHTML = renderItemDetails(match);
+      });
     });
-  });
-}
+  }

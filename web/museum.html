@@ -1,9 +1,9 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Bingo • SkyBlockCodexAPI</title>
+  <title>Museum • SkyBlockCodexAPI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -16,26 +16,23 @@
     <div class="logo">SkyBlockCodexAPI</div>
     <div class="topbar-links">
       <a class="topbar-link" href="./index.html">Inicio</a>
+      <a class="topbar-link" href="./mayor.html">Mayor</a>
+      <a class="topbar-link" href="./bingo.html">Bingo</a>
       <a class="topbar-link" href="./museum.html">Museum</a>
     </div>
     <div class="status" id="status">Listo</div>
   </header>
 
   <main class="container">
-    <section class="results" id="bingoPage">
-      <div class="empty">Cargando información de Bingo...</div>
+    <section class="results" id="museumPage">
+      <div class="empty">Cargando Museum...</div>
     </section>
   </main>
-
-  <footer class="footer">
-    <span>Bingo • Detalles completos</span>
-    <span class="mono">API pública • Hypixel</span>
-  </footer>
 
   <div class="modal" id="goalModal">
     <div class="modal-card">
       <button class="modal-close" id="modalClose">Cerrar</button>
-      <div class="modal-title" id="modalTitle">Objetivo</div>
+      <div class="modal-title" id="modalTitle">Detalle</div>
       <div class="perk-desc" id="modalBody"></div>
     </div>
   </div>
