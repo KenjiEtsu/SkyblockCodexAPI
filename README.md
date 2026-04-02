@@ -14,12 +14,12 @@ Una wiki interactiva de **Hypixel SkyBlock** construida como sitio estático par
 
 ## Estructura
 
-- `web/index.html` → Home
-- `web/mayor.html` → Detalles del Mayor
-- `web/bingo.html` → Detalles de Bingo
-- `web/404.html` → Página 404
-- `web/styles.css` → Estilos
-- `web/app.js` → Lógica
+- `index.html` → Home
+- `mayor.html` → Detalles del Mayor
+- `bingo.html` → Detalles de Bingo
+- `404.html` → Página 404
+- `styles.css` → Estilos
+- `app.js` → Lógica
 - `.github/workflows/pages.yml` → Deploy en GitHub Pages
 
 ## Desarrollo local
@@ -42,7 +42,7 @@ Ya está listo el workflow en:
 .github/workflows/pages.yml
 ```
 
-Solo necesitas hacer push a la rama `main` y Pages publicará automáticamente la carpeta `web/`.
+Solo necesitas hacer push a la rama `main` y Pages publicará automáticamente la raíz del proyecto.
 
 ## API Pública utilizada
 
