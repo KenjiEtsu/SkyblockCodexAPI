@@ -12,6 +12,12 @@ const currentBingoLink = document.getElementById("currentBingo");
 const mayorPage = document.getElementById("mayorPage");
 const bingoPage = document.getElementById("bingoPage");
 const museumPage = document.getElementById("museumPage");
+const NIGHT_BACKGROUNDS = [
+  "https://64.media.tumblr.com/723304f7e96ba769092aa5c3d942cbef/18a032f9a221d0b4-32/s640x960/929448d5d111c42c7ad7f5affb78db023c564874.gifv",
+  "https://64.media.tumblr.com/6fc3b85fe0e1bafc9dbd06e995a5ad7f/18a032f9a221d0b4-29/s640x960/da8f386d2de45441dbd78847eb79c8a91ca05a01.gifv",
+  "https://64.media.tumblr.com/ec2b4268bcd420f4cf20c0e94c891150/18a032f9a221d0b4-57/s640x960/5d802ac931c2c6183bbd087fe60bed1d683b9256.gifv",
+  "https://64.media.tumblr.com/4406b580fb4d10b49a2980a241608f4b/18a032f9a221d0b4-2c/s640x960/a620686b2eef1850beaea53ddaf490fa673f7e39.gifv",
+];
 
 let mode = "item";
 let suggestTimer = null;
@@ -43,6 +49,13 @@ const demoArea = document.getElementById("demoArea");
 const demoText = document.getElementById("demoText");
 const demoResults = document.getElementById("demoResults");
 let demoActive = true;
+
+function setRandomHomeBackground() {
+  if (!document.body?.classList.contains("home-page")) return;
+  if (!NIGHT_BACKGROUNDS.length) return;
+  const pick = NIGHT_BACKGROUNDS[Math.floor(Math.random() * NIGHT_BACKGROUNDS.length)];
+  document.body.style.setProperty("--home-bg", `url("${pick}")`);
+}
 
 function now() {
   return Date.now();
@@ -1315,6 +1328,7 @@ if (suggestions) {
 }
 
 if (modeGrid) setMode(mode);
+setRandomHomeBackground();
 
 async function loadStaticPanels() {
   if (museumPage) {
